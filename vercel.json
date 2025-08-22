@@ -1,8 +1,17 @@
 {
   "version": 2,
   "builds": [
-    { "src": "analyze.js", "use": "@vercel/node" },
-    { "src": "index.html", "use": "@vercel/static" }
+    {
+      "src": "analyze.js",
+      "use": "@vercel/node",
+      "config": {
+        "region": "hkg1" 
+      }
+    },
+    {
+      "src": "index.html",
+      "use": "@vercel/static"
+    }
   ],
   "routes": [
     {
