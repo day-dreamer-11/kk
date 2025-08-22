@@ -2,28 +2,25 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <title>AI 日程的分析</title>
+    <title>AI 日程分析 (Gemini版)</title>
     <style>
-        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; margin: 40px; background: #f5f5f5; display: flex; flex-direction: column; align-items: center; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; margin: 0; padding: 40px; background: #f5f5f5; display: flex; justify-content: center; }
         .container { max-width: 600px; width: 100%; background: #fff; padding: 30px; border-radius: 10px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
-        h1, h2 { color: #333; }
-        textarea { width: 100%; font-size: 16px; padding: 10px; border: 1px solid #ccc; border-radius: 5px; box-sizing: border-box; }
-        button { width: 100%; padding: 12px 20px; font-size: 16px; margin-top: 10px; background-color: #007bff; color: white; border: none; border-radius: 5px; cursor: pointer; transition: background-color 0.2s; }
-        button:hover { background-color: #0056b3; }
-        pre { width: 100%; box-sizing: border-box; background: #e9ecef; padding: 15px; border-radius: 5px; white-space: pre-wrap; word-wrap: break-word; min-height: 50px; }
+        h1, h2 { color: #333; border-bottom: 1px solid #eee; padding-bottom: 10px; }
+        textarea { width: 100%; font-size: 16px; padding: 10px; border: 1px solid #ccc; border-radius: 5px; box-sizing: border-box; min-height: 150px; resize: vertical; }
+        button { width: 100%; padding: 12px; font-size: 16px; font-weight: bold; margin-top: 15px; background-color: #4285F4; color: white; border: none; border-radius: 5px; cursor: pointer; transition: background-color 0.2s; }
+        button:hover:not(:disabled) { background-color: #357ae8; }
+        button:disabled { background-color: #cccccc; cursor: not-allowed; }
+        pre { background: #e9ecef; padding: 15px; border-radius: 5px; white-space: pre-wrap; word-wrap: break-word; min-height: 50px; line-height: 1.6; }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>AI 日程分析</h1>
-        <textarea id="scheduleInput" rows="6" placeholder="输入今天的日程，例如：
-9:00-10:00 开项目启动会
-12:00 和客户吃饭
-15:00-17:00 写代码"></textarea>
-
-        <button id="analyzeBtn">分析日程</button>
-        <h2>分析结果：</h2>
-        <pre id="resultOutput"></pre>
+        <h1>AI 日程分析 (Gemini版)</h1>
+        <textarea id="scheduleInput" placeholder="请在这里输入您的日程安排..."></textarea>
+        <button id="analyzeBtn">开始分析</button>
+        <h2>分析结果</h2>
+        <pre id="resultOutput">请在上方输入日程后点击“开始分析”。</pre>
     </div>
 
     <script>
@@ -32,41 +29,40 @@
         const resultOutput = document.getElementById('resultOutput');
 
         analyzeBtn.addEventListener('click', async () => {
-            const text = scheduleInput.value.trim();
-            if (!text) {
-                alert('请输入日程内容');
+            const textToAnalyze = scheduleInput.value.trim();
+            if (!textToAnalyze) {
+                alert('请输入日程内容后再进行分析。');
                 return;
             }
 
             analyzeBtn.disabled = true;
-            resultOutput.textContent = '分析中，请稍候...';
+            analyzeBtn.textContent = '正在分析中...';
+            resultOutput.textContent = 'Gemini 正在思考，请稍候...';
 
             try {
-                // **【已修正】** 请求正确的 API 路由，而不是文件名
-                const res = await fetch('/api/analyze', {
+                // 调用后端的 /api/analyze 路由
+                const response = await fetch('/api/analyze', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ data: text }) // **【已修正】** body的key要与后端匹配，我们定的是data
+                    body: JSON.stringify({ data: textToAnalyze })
                 });
 
-                const data = await res.json();
+                const resultData = await response.json();
 
-                if (!res.ok) {
-                    // 如果API返回错误，显示错误信息
-                    throw new Error(data.message || '分析失败');
+                if (!response.ok) {
+                    throw new Error(resultData.message || '请求失败，请稍后重试。');
                 }
 
-                // **【已修正】** 从返回结果中获取分析内容
-                resultOutput.textContent = data.analysis;
+                resultOutput.textContent = resultData.result;
 
-            } catch (err) {
-                resultOutput.textContent = `分析失败：${err.message}`;
-                console.error(err);
+            } catch (error) {
+                console.error('Analysis Error:', error);
+                resultOutput.textContent = `分析失败：${error.message}`;
             } finally {
                 analyzeBtn.disabled = false;
+                analyzeBtn.textContent = '开始分析';
             }
         });
     </script>
 </body>
 </html>
-
