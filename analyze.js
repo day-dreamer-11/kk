@@ -1,26 +1,62 @@
-import fetch from 'node-fetch';
+// 文件路径: analyze.js (放在根目录)
 
-export default async function handler(req, res) {
-    if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
+module.exports = async (req, res) => {
+  // --- CORS 和请求方法检查 ---
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 
-    const { text } = req.body;
-    try {
-        const response = await fetch('https://api.kimi.ai/v1/completions', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': 'Bearer sk-bhRqYmOYjyAtHdOwNMOl07MchX3ViEUSUl5057keOV0lkpNb'
-            },
-            body: JSON.stringify({
-                model: 'kimi-large',
-                prompt: `请分析以下日程并给出建议:\n${text}`,
-                max_tokens: 200
-            })
-        });
-        const result = await response.json();
-        res.status(200).json({ result: result.choices?.[0]?.text || '无返回结果' });
-    } catch (err) {
-        console.error(err);
-        res.status(500).json({ result: '分析失败' });
+  if (req.method === 'OPTIONS') {
+    return res.status(200).end();
+  }
+
+  if (req.method !== 'POST') {
+    return res.status(405).json({ message: 'Method Not Allowed' });
+  }
+  // ---------------------------
+
+  try {
+    // 1. 从 Vercel 环境变量中安全地获取 Gemini API 密钥
+    const apiKey = process.env.GEMINI_API_KEY;
+    if (!apiKey) {
+      console.error("Server Error: GEMINI_API_KEY is not configured.");
+      return res.status(500).json({ message: "服务器配置错误：缺少 API 密钥。" });
     }
-}
+
+    // 2. 获取前端传来的数据
+    const { data } = req.body;
+    if (!data) {
+      return res.status(400).json({ message: '请求中未包含任何文本内容。' });
+    }
+
+    // 3. 准备调用 Gemini API
+    const API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${apiKey}`;
+    const prompt = `你是一位专业的日程管理和效率优化助手 。请根据用户提供的以下日程文本，以清晰、有条理、易于阅读的方式给出总结和具体的优化建议。\n\n日程内容：\n${data}`;
+
+    const geminiResponse = await fetch(API_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        "contents": [{ "parts": [{ "text": prompt }] }]
+      })
+    });
+
+    // 4. 处理 Gemini API 的响应
+    const resultData = await geminiResponse.json();
+
+    if (!geminiResponse.ok) {
+      console.error("Gemini API Error:", resultData);
+      const errorMessage = resultData?.error?.message || 'Gemini API 返回未知错误。';
+      return res.status(geminiResponse.status).json({ message: `Gemini API 错误: ${errorMessage}` });
+    }
+
+    const analysisResult = resultData.candidates[0].content.parts[0].text;
+
+    // 5. 成功返回结果
+    return res.status(200).json({ result: analysisResult });
+
+  } catch (error) {
+    console.error("Internal Server Error:", error);
+    return res.status(500).json({ message: '服务器发生意外错误，请稍后重试。' });
+  }
+};
