@@ -2,16 +2,73 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <title>AI 日程分析</title>
+    <title>AI 日程分析 (流式版)</title>
     <style>
-        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; margin: 40px; background: #f5f5f5; display: flex; flex-direction: column; align-items: center; }
-        .container { max-width: 600px; width: 100%; background: #fff; padding: 30px; border-radius: 10px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
-        h1, h2 { color: #333; }
-        textarea { width: 100%; font-size: 16px; padding: 10px; border: 1px solid #ccc; border-radius: 5px; box-sizing: border-box; min-height: 100px; }
-        button { width: 100%; padding: 12px 20px; font-size: 16px; margin-top: 10px; background-color: #007bff; color: white; border: none; border-radius: 5px; cursor: pointer; transition: background-color 0.2s; }
-        button:hover { background-color: #0056b3; }
-        button:disabled { background-color: #ccc; cursor: not-allowed; }
-        pre { width: 100%; box-sizing: border-box; background: #e9ecef; padding: 15px; border-radius: 5px; white-space: pre-wrap; word-wrap: break-word; min-height: 50px; }
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; 
+            margin: 40px; 
+            background: #f5f5f5; 
+            display: flex; 
+            flex-direction: column; 
+            align-items: center; 
+        }
+        .container { 
+            max-width: 600px; 
+            width: 100%; 
+            background: #fff; 
+            padding: 30px; 
+            border-radius: 10px; 
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1); 
+        }
+        h1, h2 { 
+            color: #333; 
+        }
+        textarea { 
+            width: 100%; 
+            font-size: 16px; 
+            padding: 10px; 
+            border: 1px solid #ccc; 
+            border-radius: 5px; 
+            box-sizing: border-box; 
+            min-height: 100px; 
+        }
+        button { 
+            width: 100%; 
+            padding: 12px 20px; 
+            font-size: 16px; 
+            margin-top: 10px; 
+            background-color: #007bff; 
+            color: white; 
+            border: none; 
+            border-radius: 5px; 
+            cursor: pointer; 
+            transition: background-color 0.2s; 
+        }
+        button:hover { 
+            background-color: #0056b3; 
+        }
+        button:disabled { 
+            background-color: #ccc; 
+            cursor: not-allowed; 
+        }
+        pre { 
+            width: 100%; 
+            box-sizing: border-box; 
+            background: #e9ecef; 
+            padding: 15px; 
+            border-radius: 5px; 
+            white-space: pre-wrap; 
+            word-wrap: break-word; 
+            min-height: 50px; 
+            line-height: 1.6;
+        }
+        /* 打字光标的闪烁动画 */
+        @keyframes blink {
+            50% { opacity: 0; }
+        }
+        .cursor {
+            animation: blink 1s step-end infinite;
+        }
     </style>
 </head>
 <body>
@@ -40,29 +97,45 @@
             }
 
             analyzeBtn.disabled = true;
-            resultOutput.textContent = '分析中，请稍候...';
+            resultOutput.textContent = ''; // 清空之前的结果
+            
+            // 添加一个闪烁的光标，提升用户体验
+            let cursor = document.createElement('span');
+            cursor.textContent = '▋';
+            cursor.className = 'cursor';
+            resultOutput.appendChild(cursor);
 
             try {
-                // 请求指向根目录下的JS文件名
                 const res = await fetch('/analyze.js', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    // body的key统一为 'text'
                     body: JSON.stringify({ text: text }) 
                 });
 
-                const data = await res.json();
-
                 if (!res.ok) {
-                    throw new Error(data.analysis || data.error || '分析请求失败');
+                    const errorText = await res.text();
+                    throw new Error(errorText || '分析请求失败');
                 }
 
-                // 从返回结果中获取分析内容并显示
-                resultOutput.textContent = data.analysis;
+                // 获取响应的可读流
+                const reader = res.body.getReader();
+                const decoder = new TextDecoder();
+
+                resultOutput.removeChild(cursor); // 开始接收数据，移除光标
+
+                while (true) {
+                    const { value, done } = await reader.read();
+                    if (done) break; // 流结束
+                    
+                    const chunk = decoder.decode(value, { stream: true });
+                    resultOutput.textContent += chunk; // 将新收到的文字块追加到结果中
+                }
 
             } catch (err) {
+                if (resultOutput.contains(cursor)) {
+                    resultOutput.removeChild(cursor);
+                }
                 resultOutput.textContent = `分析失败：${err.message}`;
-                console.error(err);
             } finally {
                 analyzeBtn.disabled = false;
             }
