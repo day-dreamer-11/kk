@@ -1,5 +1,5 @@
-// analyze.js
-import openai from 'openai'; // 确保导入的是openai库
+// 只导入 openai 库，确保没有 import ... from 'node-fetch' 这一行！
+import openai from 'openai'; 
 
 // 从Vercel的环境变量中安全地读取API密钥
 const GROQ_API_KEY = process.env.GROQ_API_KEY;
@@ -20,11 +20,13 @@ export default async function handler(req, res) {
     }
 
     try {
+        // 使用 openai 库来初始化客户端
         const client = new openai.OpenAI({
             apiKey: GROQ_API_KEY,
             baseURL: 'https://api.groq.com/openai/v1'
         } );
 
+        // 使用 client 来调用API，这里不需要手动使用 fetch
         const response = await client.chat.completions.create({
             model: 'llama3-8b-8192',
             messages: [
