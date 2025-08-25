@@ -1,51 +1,65 @@
-// 文件路径: analyze.js (最终修正版)
+import fetch from 'node-fetch';
 
-module.exports = async (req, res) => {
-  // --- CORS 和请求方法检查 (保持不变) ---
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-  if (req.method === 'OPTIONS') return res.status(200).end();
-  if (req.method !== 'POST') return res.status(405).json({ message: 'Method Not Allowed' });
-  // ------------------------------------
+// 使用您新生成的、未公开的Groq API密钥
+// 为了安全，强烈建议将密钥存储在环境变量中，而不是硬编码在代码里
+const GROQ_API_KEY = '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'; // <--- 已替换为您提供的密钥
 
-  try {
-    const apiKey = process.env.GEMINI_API_KEY;
-    if (!apiKey) {
-      return res.status(500).json({ message: "服务器配置错误：缺少 API 密钥。" });
+export default async function handler(req, res) {
+    if (req.method !== 'POST') {
+        return res.status(405).json({ error: 'Method not allowed' });
     }
 
-    const { data } = req.body;
-    if (!data) {
-      return res.status(400).json({ message: '请求中未包含任何文本内容。' });
+    // 从请求体中获取文本，兼容您前端代码的两种可能写法
+    const text = req.body.text || req.body.data;
+
+    if (!text) {
+        return res.status(400).json({ error: 'Text is required in the request body' });
     }
 
-    // 【【【 已修正 #1 】】】 使用 v1 版本的 API，并指定模型
-    const API_URL = `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash-latest:generateContent?key=${apiKey}`;
-    
-    const prompt = `你是一位专业的日程管理和效率优化助手 。请根据用户提供的以下日程文本，以清晰、有条理、易于阅读的方式给出总结和具体的优化建议。\n\n日程内容：\n${data}`;
+    try {
+        // 调用Groq的API
+        const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                // 使用Groq的API密钥
+                'Authorization': `Bearer ${GROQ_API_KEY}`
+            },
+            body: JSON.stringify({
+                // 使用Llama3模型
+                model: 'llama3-8b-8192', 
+                messages: [
+                    {
+                        role: 'system',
+                        // 为Llama 3优化了系统指令 ，使用英文通常效果更好
+                        content: "You are an AI assistant that analyzes schedules and provides suggestions. Please analyze the following schedule and give advice in Chinese."
+                    },
+                    {
+                        role: 'user',
+                        content: `请分析以下日程并给出建议:\n${text}`
+                    }
+                ],
+                max_tokens: 200,
+                temperature: 0.7 // 稍微增加一点创造性
+            })
+        });
 
-    const geminiResponse = await fetch(API_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        "contents": [{ "parts": [{ "text": prompt }] }]
-      })
-    });
+        const result = await response.json();
 
-    const resultData = await geminiResponse.json();
+        if (!response.ok) {
+            // 如果API返回错误，将错误信息传递给前端
+            console.error('Groq API Error:', result);
+            throw new Error(result.error?.message || 'Groq API returned an error');
+        }
 
-    if (!geminiResponse.ok) {
-      console.error("Gemini API Error:", resultData);
-      const errorMessage = resultData?.error?.message || 'Gemini API 返回未知错误。';
-      return res.status(geminiResponse.status).json({ message: `Gemini API 错误: ${errorMessage}` });
+        // 从返回结果中提取AI生成的内容
+        const analysis = result.choices?.[0]?.message?.content || '无返回结果';
+        
+        // **【重要】** 确保返回的JSON key与前端期望的'analysis'匹配
+        res.status(200).json({ analysis: analysis });
+
+    } catch (err) {
+        console.error('Server-side error:', err);
+        res.status(500).json({ analysis: `分析失败: ${err.message}` });
     }
-
-    const analysisResult = resultData.candidates[0].content.parts[0].text;
-    return res.status(200).json({ result: analysisResult });
-
-  } catch (error) {
-    console.error("Internal Server Error:", error);
-    return res.status(500).json({ message: '服务器发生意外错误，请稍后重试。' });
-  }
-};
+}
