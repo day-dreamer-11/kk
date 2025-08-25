@@ -2,7 +2,7 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <title>AI 日程分析 (流式版)</title>
+    <title>AI 日程分析</title>
     <style>
         body { 
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; 
@@ -62,13 +62,6 @@
             min-height: 50px; 
             line-height: 1.6;
         }
-        /* 打字光标的闪烁动画 */
-        @keyframes blink {
-            50% { opacity: 0; }
-        }
-        .cursor {
-            animation: blink 1s step-end infinite;
-        }
     </style>
 </head>
 <body>
@@ -97,13 +90,7 @@
             }
 
             analyzeBtn.disabled = true;
-            resultOutput.textContent = ''; // 清空之前的结果
-            
-            // 添加一个闪烁的光标，提升用户体验
-            let cursor = document.createElement('span');
-            cursor.textContent = '▋';
-            cursor.className = 'cursor';
-            resultOutput.appendChild(cursor);
+            resultOutput.textContent = '分析中，请稍候...';
 
             try {
                 const res = await fetch('/analyze.js', {
@@ -112,29 +99,18 @@
                     body: JSON.stringify({ text: text }) 
                 });
 
+                // 使用 .json() 解析响应
+                const data = await res.json(); 
+
                 if (!res.ok) {
-                    const errorText = await res.text();
-                    throw new Error(errorText || '分析请求失败');
+                    // 从返回的JSON中获取错误信息
+                    throw new Error(data.error || '分析请求失败');
                 }
 
-                // 获取响应的可读流
-                const reader = res.body.getReader();
-                const decoder = new TextDecoder();
-
-                resultOutput.removeChild(cursor); // 开始接收数据，移除光标
-
-                while (true) {
-                    const { value, done } = await reader.read();
-                    if (done) break; // 流结束
-                    
-                    const chunk = decoder.decode(value, { stream: true });
-                    resultOutput.textContent += chunk; // 将新收到的文字块追加到结果中
-                }
+                // 显示结果
+                resultOutput.textContent = data.analysis; 
 
             } catch (err) {
-                if (resultOutput.contains(cursor)) {
-                    resultOutput.removeChild(cursor);
-                }
                 resultOutput.textContent = `分析失败：${err.message}`;
             } finally {
                 analyzeBtn.disabled = false;
