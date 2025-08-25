@@ -1,8 +1,8 @@
 {
-  "name": "ai-schedule-analyzer",
+  "name": "ai-schedule-analyzer-groq",
   "version": "1.0.0",
   "type": "module",
   "dependencies": {
-    "node-fetch": "^3.3.2"
+    "openai": "^4.0.0"
   }
 }
